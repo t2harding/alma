@@ -95,8 +95,8 @@ class MyServer(object):
                         socket_closed = True
                         break
                     self.logger.debug('  index:  {}'.format(start_byte_index))
-                    self.logger.debug('  rx:     0x{:02x}'.format(int(data_byte)))
-                    if data_byte == packet.PACKET_START_BYTES[start_byte_index]:
+                    self.logger.debug('  rx:     0x{:02x}'.format(ord(data_byte)))
+                    if ord(data_byte) == packet.PACKET_START_BYTES[start_byte_index]:
                         data_chunks.append(data_byte)
                         start_byte_index += 1
                     else:
@@ -104,10 +104,8 @@ class MyServer(object):
                         data_chunks = []
                         start_byte_index = 0
                     if start_byte_index > 1:
-                        self.logger.debug('  Start byte found')
+                        self.logger.debug('  Start code found')
                         start_byte_found = True
-                if socket_closed:
-                    break
                 packet_length = skt.recv(2)
                 if packet_length == '':
                     self.logger.info('Socket has been closed')
@@ -120,7 +118,9 @@ class MyServer(object):
                     self.logger.info('Socket has been closed')
                     socket_closed = True
                     break
-                self.logger.debug('  length: 0x{:04x}'.format(int(packet_length)))
+                data_chunks.append(packet_length)
+                packet_length = int(struct.unpack('H', packet_length)[0])
+                self.logger.debug('  length: 0x{:04x}'.format(packet_length))
                 # Now get the packet ID
                 packet_id = skt.recv(1)
                 if packet_id == '':
@@ -128,11 +128,10 @@ class MyServer(object):
                     socket_closed = True
                     break
                 data_chunks.append(packet_id)
-                packet_id = int(packet_id)
+                packet_id = ord(packet_id)
                 self.logger.debug('  ID:     0x{:02x}'.format(packet_id))
-                data_chunks.append(packet_length)
-                data_remaining = int(packet_length) - 5
-                bytes_recvd = 0
+                data_remaining = packet_length
+                bytes_recvd = 5 # Start with the header received
                 while bytes_recvd < (data_remaining):
                     data_recvd = skt.recv(min(data_remaining - bytes_recvd, 2048))
                     if data_recvd == '':
@@ -141,9 +140,14 @@ class MyServer(object):
                         break
                     data_chunks.append(data_recvd)
                     bytes_recvd += len(data_recvd)
+                    self.logger.debug('  rx data:     {}'.format(''.join('%02x ' % ord(c) for c in data_recvd)))
+                    self.logger.debug('  bytes_recvd: {}'.format(bytes_recvd))
                 # Process the packet
                 with self.packet_list_lock:
-                    self.packet_list[packet_id].unpack(''.join(data_chunks))
+                    if self.packet_list[packet_id] is None:
+                        self.logger.warning('Unknown packet received ID = 0x{:02x}'.format(packet_id))
+                    else:
+                        self.packet_list[packet_id].unpack(''.join(data_chunks))
                 # Load the received packet on the queue
                 self.logger.info('Packet 0x{:02x} recevied'.format(packet_id))
             except socket.timeout:
@@ -217,8 +221,8 @@ if __name__ == '__main__':
     my_server.add_packet(my_packet)
     my_server.add_packet(my_packet_2)
     my_server.add_status(1)
-    my_server.add_status(1)
-    my_server.add_status(2)
+    #my_server.add_status(1)
+    #my_server.add_status(2)
 
     server_thread = threading.Thread(target=my_server.start)
     server_thread.setDaemon(True)
