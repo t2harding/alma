@@ -7,6 +7,10 @@ __version__ = filter(str.isdigit, '$Revision: $')
 import logging
 import struct
 
+
+PACKET_START_BYTES = (0xa1, 0x95)
+PACKET_MAX_ID = 0xFF
+
 class Packet(object):
     """
     Packet for serial data stream (Ethernet, RS232/RS422, etc)
@@ -66,24 +70,24 @@ class Packet(object):
 
     def pack(self):
         self.logger.debug('pack()')
-        header = struct.pack('2BHb', 0xa1, 0x95, struct.calcsize(self.format) + 6, self.id)
-        return header + self._to_bytes()
+        header = struct.pack('2BHB', PACKET_START_BYTES[0], PACKET_START_BYTES[1], struct.calcsize(self.format) + 6, self.id)
+        return header + self._to_bytes() + struct.pack('B', 0xff)
 
     def unpack(self, data):
         self.logger.debug('unpack({})'.format(repr(data)))
-        header = struct.unpack('2BHb', data[:5])
+        header = struct.unpack('2BHB', data[:5])
         self.logger.info('Unpacking {}'.format(repr(self.name)))
         self.logger.info('  Header:     {}'.format(repr(data[:5])))
         self.logger.info('  Start code: 0x{:02x}{:02x}'.format(header[0], header[1]))
         self.logger.info('  Size:       {}'.format(repr(header[2])))
         self.logger.info('  ID:         {}'.format(repr(header[3])))
-        if header[0] != 0xa1 or header[1] != 0x95:
+        if header[0] != PACKET_START_BYTES[0] or header[1] != PACKET_START_BYTES[1]:
             self.logger.error('Bad start bytes 0xa195 != {}'.format(repr(header[0])))
             raise ValueError
         if header[3] != self.id:
             self.logger.error('Bad packet ID {} != {}'.format(repr(self.id), repr(header[1])))
             raise ValueError
-        self._from_bytes(data[5:])
+        self._from_bytes(data[5:-1])
 
     def _to_bytes(self):
         self.logger.debug('_to_bytes()')
