@@ -1,0 +1,36 @@
+PROJECT(motor_drive)
+
+#Set the chip to use
+SET(STM32_CHIP STM32L152RE)
+
+#Specify the location of the toolchain file
+SET(CMAKE_TOOLCHAIN_FILE ~/src/stm32-cmake/cmake/gcc_stm32.cmake)
+
+#Set location of the arm toolchain
+SET(TOOLCHAIN_PREFIX /usr/local/gcc-arm-none-eabi-6_2-2016q4)
+
+#Set the location of the STM32Cube folder
+SET(STM32Cube_DIR ~/tools/stm32_cube/STM32Cube_FW_L1_V1.7.0)
+
+CMAKE_MINIMUM_REQUIRED(VERSION 2.8)
+ENABLE_LANGUAGE(ASM)
+
+FIND_PACKAGE(CMSIS REQUIRED)
+FIND_PACKAGE(STM32HAL COMPONENTS gpio tim uart adc REQUIRED)
+
+INCLUDE_DIRECTORIES(
+    ${CMAKE_CURRENT_SOURCE_DIR}
+    ${CMSIS_INCLUDE_DIRS}
+    ${STM32HAL_INCLUDE_DIR}
+)
+
+SET(PROJECT_SOURCES
+    stm32l1xx_hal_msp.c
+    stm32l1xx_it.c
+    main.c
+)
+
+ADD_EXECUTABLE(${CMAKE_PROJECT_NAME} ${PROJECT_SOURCES} ${CMSIS_SOURCES} ${STM32HAL_SOURCES})
+
+STM32_SET_TARGET_PROPERTIES(${CMAKE_PROJECT_NAME})
+STM32_ADD_HEX_BIN_TARGETS(${CMAKE_PROJECT_NAME})
