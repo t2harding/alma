@@ -133,7 +133,7 @@ if __name__ == '__main__':
     parser.add_argument('-n', '--num_clients',
                         help='Number of clients to connect',
                         type=int,
-                        default='')
+                        default=1)
     parser.add_argument('-v', '--verbose',
                         help='Set verbosity level',
                         action='count')

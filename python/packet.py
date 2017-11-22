@@ -6,6 +6,7 @@ __version__ = filter(str.isdigit, '$Revision: $')
 
 import logging
 import struct
+import crc8
 
 
 PACKET_START_BYTES = (0xa1, 0x95)
@@ -41,6 +42,8 @@ class Packet(object):
         else:
             self.element_names = []
 
+        self.crc = crc8.CRC8()
+
         self._log()
 
         return
@@ -71,7 +74,7 @@ class Packet(object):
     def pack(self):
         self.logger.debug('pack()')
         header = struct.pack('2BHB', PACKET_START_BYTES[0], PACKET_START_BYTES[1], struct.calcsize(self.format) + 6, self.id)
-        return header + self._to_bytes() + struct.pack('B', 0xff)
+        return header + self._to_bytes() + struct.pack('B', self.crc.calculate(self._to_bytes()))
 
     def unpack(self, data):
         self.logger.debug('unpack({})'.format(repr(data)))
@@ -86,6 +89,9 @@ class Packet(object):
             raise ValueError
         if header[3] != self.id:
             self.logger.error('Bad packet ID {} != {}'.format(repr(self.id), repr(header[1])))
+            raise ValueError
+        if ord(data[-1]) != self.crc.calculate(data[5:-1]):
+            self.logger.error('Bad CRC 0x{:02x} != 0x{:02x}'.format(self.crc.calculate(data[5:-1]),ord(data[-1])))
             raise ValueError
         self._from_bytes(data[5:-1])
 
