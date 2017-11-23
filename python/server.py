@@ -187,7 +187,8 @@ if __name__ == '__main__':
                         default='')
     parser.add_argument('-v', '--verbose',
                         help='Set verbosity level',
-                        action='count')
+                        action='count',
+                        default=0)
 
     args = parser.parse_args()
 
