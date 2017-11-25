@@ -59,7 +59,7 @@ class CRC8(object):
     def generate_table(self, output_file = sys.stdout, language = 'c'):
         self.logger.debug('generate_table({},{})'.format(repr(output_file),repr(language)))
         if language == 'c':
-            print('const uint8_t crc8_polynomial = 0x{:02x}'.format(self.polynomial))
+            print('const uint8_t crc8_polynomial = 0x{:02x};'.format(self.polynomial))
             print('const uint8_t crc8_table[] = {', file=output_file)
         elif language == 'python':
             print('CRC8_POLYNOMIAL = 0x{:02x}'.format(self.polynomial))
