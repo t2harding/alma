@@ -27,6 +27,10 @@ Log in as root
 Add the user to the sudo group
 `usermod -a -G sudo <username>`
 
+## Create new user
+`sudo adduser <username>`
+`sudo usermod -a -G sudo,dialout,input`
+
 ## Setup with Tyson's defaults
 `curl -Lks http://github.com/tharding/dotfiles/raw/master/.dotfiles/setup.sh | /bin/bash`
 
