@@ -19,20 +19,31 @@ Accept default to install GRUB boot loader to the master boot record.
 
 ## Setup after first boot
 Log in as user with sudo permissions and install initial packages
-`sudo apt-get install git build-essential cmake curl chromium libsecret-1-dev fakeroot rpm libx11-dev libxtst-dev libxkbfile-dev vim-gtk3 pkg-config ctags arduino python-pip tmux openocd binutils-arm-none-eabi gcc-arm-none-eabi gdb-arm-none-eabi libstdc++-arm-none-eabi-newlib`
+```
+sudo apt-get install git build-essential cmake curl chromium libsecret-1-dev fakeroot rpm libx11-dev libxtst-dev libxkbfile-dev vim-gtk3 pkg-config ctags arduino python-pip tmux openocd binutils-arm-none-eabi gcc-arm-none-eabi gdb-arm-none-eabi libstdc++-arm-none-eabi-newlib i3
+```
+Set LXDE as the default window manager (useful on older machinges)
+```
+sudo update-alternatives --config x-session-manager
+```
 
 ## Add user to sudo list
 Log in as root
 `su -` Enter root passw
 Add the user to the sudo group
-`usermod -a -G sudo <username>`
-
+```
+usermod -a -G sudo <username>
+```
 ## Create new user
-`sudo adduser <username>`
-`sudo usermod -a -G sudo,dialout,input`
+```
+sudo adduser <username>
+sudo usermod -a -G sudo,dialout,input,plugdev
+```
 
 ## Setup with Tyson's defaults
-`curl -Lks http://github.com/tharding/dotfiles/raw/master/.dotfiles/setup.sh | /bin/bash`
+```
+curl -Lks http://github.com/tharding/dotfiles/raw/master/.dotfiles/setup.sh | /bin/bash
+```
 
 ## Install Atom Editor on 32-bit machines
 ### Build the deb file
