@@ -9,6 +9,7 @@ import logging
 import threading
 import select
 import time
+import client
 import packet
 
 SERVER_NETWORK_TIMEOUT = 0.1
@@ -55,103 +56,40 @@ class MyServer(object):
                 self.logger.warning('Packet ID 0x{:02x} already in status'.format(pkt_id))
 
     def client_thread(self,skt):
-        (client_addr, client_port) = skt.getsockname()
+        self.logger.debug('client_thread({})'.format(repr(skt)))
+        (client_addr, client_port) = skt.getpeername()
         self.logger.info('Starting client thread for {}:{}'.format(client_addr, client_port))
-        # Setup the socket
-        socket_closed = False
+        # Create a client
+        clnt = client.MyClient(skt=skt)
+        for pkt in self.packet_list:
+            if pkt is not None:
+                clnt.add_packet(pkt)
+        # Setup the interface
+        interface_closed = False
         next_packet_time = round(time.time() + SERVER_MAX_PACKET_RATE, 2)
-        skt.settimeout(SERVER_NETWORK_TIMEOUT)
+        clnt.set_timeout(SERVER_NETWORK_TIMEOUT)
         # Make local copy of default global variables
         # Loop until the socket is closed by the client
-        while not socket_closed:
+        while not interface_closed:
             # Send telemetry packets based on subscription interval
             if time.time() > next_packet_time:
                 next_packet_time = round(time.time() + SERVER_MAX_PACKET_RATE, 2)
                 self.logger.debug('Next packet time: {}'.format(next_packet_time))
                 with self.status_packet_list_lock:
                     for status_packet_id in self.status_packet_list_ids:
-                        bytes_sent = 0
-                        with self.packet_list_lock:
-                            packet_data = self.packet_list[status_packet_id].pack()
-                        while bytes_sent < len(packet_data):
-                            sent = skt.send(packet_data[bytes_sent:])
-                            if sent == 0:
-                                self.logger.info('Sending socket has been closed')
-                                socket_closed = True
-                                break
-                            bytes_sent += sent
+                        if not clnt.send_packet(self.packet_list[status_packet_id]):
+                            # If no data could be sent the interface is closed
+                            interface_closed = True
 
             # Wait for commands to be received
-            try:
-                # Looking for the start code in the header
-                start_byte_index = 0
-                start_byte_found = False
-                data_chunks = []
-                self.logger.debug('Start code search:')
-                while not start_byte_found:
-                    data_byte = skt.recv(1)
-                    if data_byte == '':
-                        self.logger.info('Socket has been closed')
-                        socket_closed = True
-                        break
-                    self.logger.debug('  index:  {}'.format(start_byte_index))
-                    self.logger.debug('  rx:     0x{:02x}'.format(ord(data_byte)))
-                    if ord(data_byte) == packet.PACKET_START_BYTES[start_byte_index]:
-                        data_chunks.append(data_byte)
-                        start_byte_index += 1
-                    else:
-                        self.logger.info('  Start byte expected but not received')
-                        data_chunks = []
-                        start_byte_index = 0
-                    if start_byte_index > 1:
-                        self.logger.debug('  Start code found')
-                        start_byte_found = True
-                packet_length = skt.recv(2)
-                if packet_length == '':
-                    self.logger.info('Socket has been closed')
-                    socket_closed = True
-                    break
-                if len(packet_length) < 2:
-                    packet_length += skt.recv(1)
-                # If we didn't get more data and the recv call returned the socket has been closed
-                if len(packet_length) < 2:
-                    self.logger.info('Socket has been closed')
-                    socket_closed = True
-                    break
-                data_chunks.append(packet_length)
-                packet_length = int(struct.unpack('H', packet_length)[0])
-                self.logger.debug('  length: 0x{:04x}'.format(packet_length))
-                # Now get the packet ID
-                packet_id = skt.recv(1)
-                if packet_id == '':
-                    self.logger.info('Socket has been closed')
-                    socket_closed = True
-                    break
-                data_chunks.append(packet_id)
-                packet_id = ord(packet_id)
-                self.logger.debug('  ID:     0x{:02x}'.format(packet_id))
-                data_remaining = packet_length
-                bytes_recvd = 5 # Start with the header received
-                while bytes_recvd < (data_remaining):
-                    data_recvd = skt.recv(min(data_remaining - bytes_recvd, 2048))
-                    if data_recvd == '':
-                        self.logger.info('Socket has been closed')
-                        socket_closed = True
-                        break
-                    data_chunks.append(data_recvd)
-                    bytes_recvd += len(data_recvd)
-                    self.logger.debug('  rx data:     {}'.format(''.join('%02x ' % ord(c) for c in data_recvd)))
-                    self.logger.debug('  bytes_recvd: {}'.format(bytes_recvd))
-                # Process the packet
-                with self.packet_list_lock:
-                    if self.packet_list[packet_id] is None:
-                        self.logger.warning('Unknown packet received ID = 0x{:02x}'.format(packet_id))
-                    else:
-                        self.packet_list[packet_id].unpack(''.join(data_chunks))
-                # Load the received packet on the queue
-                self.logger.info('Packet 0x{:02x} recevied'.format(packet_id))
-            except socket.timeout:
-                self.logger.debug('Socket receive timeout')
+            rcvd_pkt = clnt.process_input()
+            if rcvd_pkt is not None:
+                if rcvd_pkt == False:
+                    self.logger.info('Interface closed')
+                    interface_closed = True
+                else:
+                    # Packet received
+                    self.logger.info('Packet received {}'.format(repr(rcvd_pkt)))
         self.logger.info('client_tread exitting')
 
     def start(self):
@@ -185,6 +123,9 @@ if __name__ == '__main__':
     parser.add_argument('-a', '--address',
                         help='Network address to listen on',
                         default='')
+    parser.add_argument('-l', '--logfile',
+                        help='File to log messages to',
+                        default=None)
     parser.add_argument('-v', '--verbose',
                         help='Set verbosity level',
                         action='count',
@@ -193,7 +134,10 @@ if __name__ == '__main__':
     args = parser.parse_args()
 
     # Setup the logger
-    logging.basicConfig(format='%(asctime)s: [%(levelname)-7s] %(name)-10s| %(message)s')
+    if args.logfile is not None:
+        logging.basicConfig(filename=args.logfile, format='%(asctime)s: [%(levelname)-7s] %(name)-10s| %(message)s')
+    else:
+        logging.basicConfig(format='%(asctime)s: [%(levelname)-7s] %(name)-10s| %(message)s')
     root_logger = logging.getLogger()
 
     if args.verbose > 1:
