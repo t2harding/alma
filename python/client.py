@@ -16,11 +16,11 @@ class MyClient(object):
     """
     Client template
     """
-    def __init__(self, addr=None, port=None, timeout=None, baudrate=9600, skt=None):
+    def __init__(self, dest=None, port=None, timeout=None, baudrate=9600, skt=None):
         self.logger = logging.getLogger(__name__)
         self.logger.debug('__init__')
 
-        self.logger.debug('  addr      = {}'.format(repr(addr)))
+        self.logger.debug('  dest      = {}'.format(repr(dest)))
         self.logger.debug('  port      = {}'.format(repr(port)))
         self.logger.debug('  timeout   = {}'.format(repr(timeout)))
         self.logger.debug('  baudrate  = {}'.format(repr(baudrate)))
@@ -31,18 +31,18 @@ class MyClient(object):
         self.timeout = timeout
 
         if skt is None:
-            if addr is None:
+            if dest is None:
                 raise ValueError('Must specify an address/serial port or socket')
             # Check to see if we received an IP address or serial port
             try:
-                sktaddr = socket.gethostbyname(addr)
+                sktaddr = socket.gethostbyname(dest)
                 self.logger.info('Opening IP address {}'.format(repr(sktaddr)))
                 self.clientsocket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
                 self.clientsocket.connect((sktaddr,port))
                 self.logger.info('Client connected to {}'.format(self.clientsocket.getsockname()))
             except socket.gaierror:
-                self.logger.info('Opening serial port {}'.format(repr(addr)))
-                self.serialport = serial.Serial(addr, baudrate, timeout=self.timeout)
+                self.logger.info('Opening serial port {}'.format(repr(dest)))
+                self.serialport = serial.Serial(dest, baudrate, timeout=self.timeout)
         else:
             self.clientsocket = skt
 
